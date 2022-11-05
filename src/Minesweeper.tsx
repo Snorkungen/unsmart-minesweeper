@@ -1,5 +1,5 @@
 import { Component, createEffect, createMemo, createSignal, JSX } from "solid-js";
-
+import classnames from "./classnames";
 import styles from "./styles/Minesweeper.module.css";
 
 interface Cell {
@@ -22,7 +22,9 @@ const createCell = (x: number, y: number, isBomb = false): Cell => ({
     isOpen: false
 })
 
-const createGrid = (size = 14, bombs = Math.floor(size * 1.8)): Grid => {
+const createGrid = (size = 6, bombs = Math.floor(size * 1.2)): Grid => {
+    console.log("CREATING GRID")
+
     let grid: Grid = [];
     for (let y = 0; y < size; y++) {
         grid[y] = [];
@@ -42,11 +44,11 @@ const createGrid = (size = 14, bombs = Math.floor(size * 1.8)): Grid => {
         /* 
             Add more explosives
         */
-       for (let _i = 0; _i < bombs; _i++) {
-        let x = Math.floor(Math.random() * size)
-        let y = Math.floor(Math.random() * size)
-        grid[y][x].isBomb = true
-       }
+        for (let _i = 0; _i < bombs; _i++) {
+            let x = Math.floor(Math.random() * size)
+            let y = Math.floor(Math.random() * size)
+            grid[y][x].isBomb = true
+        }
     }
 
 
@@ -108,10 +110,28 @@ const Count: Component<{ count: number }> = ({ count }) => {
     </div>
 }
 
+const checkIfGameIsWon = (grid: Grid) => {
+    for (let row of grid) {
+        for (let cell of row) {
+            if (!cell.isBomb && !cell.isOpen) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 const Minesweeper: Component<{ size?: number }> = ({ size }) => {
     const [grid, setGrid] = createSignal(createGrid(size), { equals: false })
-    const [gameOver, setGameOver] = createSignal(false)
-    const [gameState, setGameState] = createSignal<"NOT_STARTED" | "STARTED" | "SET_FLAG" | "BOOM">("NOT_STARTED")
+    const [gameState, setGameState] = createSignal<"NOT_STARTED" | "STARTED" | "SET_FLAG" | "BOOM" | "WON">("NOT_STARTED")
+
+    const restartGame = () => {
+        setGameState("NOT_STARTED");
+        setGrid((prev) => createGrid(prev.length))
+
+
+    }
 
     const showCell = (cell: Cell) => {
         let g = grid();
@@ -165,15 +185,11 @@ const Minesweeper: Component<{ size?: number }> = ({ size }) => {
                 }
                 prev[c?.y!][c?.x!] = item
             }
-
             return prev
         })
 
-
-
         return cells;
     }
-
 
     const handleClick: JSX.EventHandlerUnion<HTMLDivElement, MouseEvent> = (event) => {
         // Unsmart Workaround
@@ -186,7 +202,6 @@ const Minesweeper: Component<{ size?: number }> = ({ size }) => {
         }
 
         if (!cell) return;
-
         if (cell.isOpen) return;
 
 
@@ -206,7 +221,7 @@ const Minesweeper: Component<{ size?: number }> = ({ size }) => {
         }
 
         if (gameState() == "SET_FLAG") {
-            console.log("he")
+
             setGrid((prev) => {
                 let item = prev[cell?.y!][cell?.x!]
                 item = {
@@ -226,8 +241,8 @@ const Minesweeper: Component<{ size?: number }> = ({ size }) => {
             setGameState("BOOM")
             return;
         }
-        showCell(cell)
 
+        showCell(cell);
 
     }
 
@@ -238,26 +253,50 @@ const Minesweeper: Component<{ size?: number }> = ({ size }) => {
         })
     }
 
+    createEffect(() => {
+        // Check if Game is won & do something
 
 
-    return <div class={styles.board} onClick={handleClick}>
-        {grid().map((row) => (
-            <div class={styles.row}>
-                {row.map((cell) => (
-                    <div class={styles.cell} datatype={JSON.stringify(cell)}>
-                        {cell.isFlagged && <Flag />}
-                        {(
-                            gameState() === "BOOM"
-                        ) && cell.isBomb && <Bomb />}
-                        {cell.isOpen && <Count count={cell.bombCount} />}
-                    </div>
-                ))}
+        if (checkIfGameIsWon(grid())) {
+
+            setGameState("WON")
+
+        }
+
+    })
+
+
+    return <>
+        {["BOOM", "WON"].includes(gameState()) &&
+            <div
+                class={classnames(styles.banner, [styles.success, gameState() == "WON"], [styles.danger, gameState() == "BOOM"])}
+            >
+                Play Again
             </div>
-        ))}
-        <div>
-            <button onClick={handleToggleFlagMode}>Set Flag</button>
+
+        }
+
+        <div class={styles.board} onClick={handleClick}>
+            {grid().map((row) => (
+                <div class={styles.row}>
+                    {row.map((cell) => (
+                        <div class={styles.cell} datatype={JSON.stringify(cell)}>
+                            {cell.isFlagged && <Flag />}
+                            {(
+                                gameState() === "BOOM"
+                            ) && cell.isBomb && <Bomb />}
+                            {cell.isOpen && <Count count={cell.bombCount} />}
+                        </div>
+                    ))}
+                </div>
+            ))}
+            <div>
+                <button onClick={handleToggleFlagMode}>Set Flag</button>
+                <button onClick={restartGame}>Restart</button>
+            </div>
         </div>
-    </div>
+    </>
+
 }
 
 export default Minesweeper;
